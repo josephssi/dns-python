@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / 'src'))  # pr dev import
 
-from dnsmap import resolve_records, parse_txt  # fn pr resolve + txt
+from dnsmap import resolve_records, parse_txt, crawl_to_tld  # fn pr resolve + txt + crawl
 
 # petit CLI pr test rapide
 
@@ -13,6 +13,7 @@ def main():
     p = argparse.ArgumentParser(description='Simple DNS A/AAAA resolver')
     p.add_argument('domain', help='domaine à analyser')
     p.add_argument('--txt', action='store_true', help='parse TXT records')
+    p.add_argument('--crawl', action='store_true', help='crawl to tld parents')
     args = p.parse_args()  # parse args
     res = resolve_records(args.domain)  # call fn
     for rtype, vals in res.items():
@@ -34,6 +35,12 @@ def main():
         print(' ips:')
         for ip in txt['ips']:
             print('  ', ip)
+
+    if getattr(args, 'crawl', False):
+        print('\nCrawl to TLD:')
+        parents = crawl_to_tld(args.domain)
+        for pdom in parents:
+            print('  ', pdom)
 
 
 if __name__ == '__main__':
