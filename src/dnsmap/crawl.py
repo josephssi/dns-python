@@ -1,30 +1,30 @@
+
 import tldextract
 
 
+# petit module pr remonter aux domaines parents jusqu'au suffixe public
 def crawl_to_tld(domain: str) -> list:
-    """Return parent domains up to the public suffix (inclusive).
-
-    Example: for `a.b.c.d.e.f.gouv.fr` returns:
-      ['b.c.d.e.f.gouv.fr', 'c.d.e.f.gouv.fr', ..., 'f.gouv.fr']
-    Stops at the public suffix (so it won't return only 'fr').
-    """
+    """Renvoie les domaines parents jusqu'au suffixe public."""
+    # découpe en étiquettes
     labels = domain.strip().split('.')
     if len(labels) <= 1:
         return []
 
+    # utilise tldextract pour connaître le suffixe public (ex: 'social.gouv.fr')
     ext = tldextract.extract(domain)
-    public_suffix = ext.suffix  # e.g. 'social.gouv.fr'
+    public_suffix = ext.suffix
 
     parents = []
     n = len(labels)
+    # construit les parents en enlevant l'étiquette gauche
     for i in range(1, n):
         candidate = '.'.join(labels[i:])
         parents.append(candidate)
+        # si on atteint le suffixe public, on s'arrête
         if candidate == public_suffix:
             break
 
     return parents
 
 
-if __name__ == '__main__':
-    print(crawl_to_tld('sirena.integration.dev.atlas.fabrique.social.gouv.fr'))
+

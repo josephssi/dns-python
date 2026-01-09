@@ -10,10 +10,10 @@ from dnsmap import resolve_records, parse_txt, crawl_to_tld  # fn pr resolve + t
 
 
 def main():
-    p = argparse.ArgumentParser(description='Simple DNS A/AAAA resolver')
+    p = argparse.ArgumentParser(description='Résolution DNS basique (A/AAAA)')
     p.add_argument('domain', help='domaine à analyser')
-    p.add_argument('--txt', action='store_true', help='parse TXT records')
-    p.add_argument('--crawl', action='store_true', help='crawl to tld parents')
+    p.add_argument('--txt', action='store_true', help='parser les enregistrements TXT')
+    p.add_argument('--crawl', action='store_true', help='remonter aux domaines parents (TLD)')
     args = p.parse_args()  # parse args
     res = resolve_records(args.domain)  # call fn
     for rtype, vals in res.items():
@@ -24,20 +24,20 @@ def main():
             print(f"  {v}")  # affiche chaque val
 
     if getattr(args, 'txt', False):
-        print('\nTXT parse:')
+        print('\nRésultats TXT:')
         txt = parse_txt(args.domain)
-        print(' raw:')
+        print(' brut:')
         for r in txt['raw']:
             print('  ', r)
-        print(' domains:')
+        print(' domaines:')
         for d in txt['domains']:
             print('  ', d)
-        print(' ips:')
+        print(' IPs:')
         for ip in txt['ips']:
             print('  ', ip)
 
     if getattr(args, 'crawl', False):
-        print('\nCrawl to TLD:')
+        print('\nParents jusqu au TLD:')
         parents = crawl_to_tld(args.domain)
         for pdom in parents:
             print('  ', pdom)

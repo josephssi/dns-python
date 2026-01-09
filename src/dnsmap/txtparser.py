@@ -7,18 +7,18 @@ _DOMAIN_RE = re.compile(r"\b[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
 
 
 def parse_txt(domain: str) -> dict:
-    """Get TXT records and extract domains and IPv4s."""
+    """Récupère les enregistrements TXT et extrait domaines et adresses IPv4."""
     out = {"raw": [], "domains": [], "ips": []}
     try:
         ans = dns.resolver.resolve(domain, 'TXT')
         for r in ans:
             txt = r.to_text()
             out["raw"].append(txt)
-            # find ips
+            # repère IPs
             for ip in _IP_RE.findall(txt):
                 if ip not in out["ips"]:
                     out["ips"].append(ip)
-            # find domains
+            # repère domaines
             for d in _DOMAIN_RE.findall(txt):
                 if d not in out["domains"]:
                     out["domains"].append(d)
