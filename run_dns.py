@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / 'src'))  # pr dev import
 
-from dnsmap import resolve_records, parse_txt, crawl_to_tld, scan_srv, reverse_lookup  # fn pr resolve + txt + crawl + srv + rev
+from dnsmap import resolve_records, parse_txt, crawl_to_tld, scan_srv, reverse_lookup, enumerate_subdomains  # fn pr resolve + txt + crawl + srv + rev + sub
 
 # petit CLI pr test rapide
 
@@ -16,6 +16,8 @@ def main():
     p.add_argument('--crawl', action='store_true', help='remonter aux domaines parents (TLD)')
     p.add_argument('--srv', action='store_true', help='scanner les enregistrements SRV')
     p.add_argument('--rev', action='store_true', help='reverse DNS (PTR) des IPs résolues')
+    p.add_argument('--sub', action='store_true', help='brute-force sous-domaines courants')
+    p.add_argument('--wordlist', help='chemin vers wordlist (un mot par ligne)')
     args = p.parse_args()  # parse args
     res = resolve_records(args.domain)  # call fn
     for rtype, vals in res.items():
@@ -71,6 +73,31 @@ def main():
                     print(f"  {ip} -> {p}")
             else:
                 print(f"  {ip} -> (aucun PTR)")
+
+    if getattr(args, 'sub', False):
+        print('\nSous-domaines découverts:')
+        wl = None
+        if getattr(args, 'wordlist', None):
+            wl = []
+            try:
+                from dnsmap.subenum import load_wordlist
+                wl = load_wordlist(args.wordlist)
+            except Exception:
+                wl = None
+        subs = enumerate_subdomains(args.domain, wl)
+        if not subs:
+            print('  (aucun)')
+        for s in subs:
+            print(f"  {s['sub']}")
+            if s['A']:
+                for a in s['A']:
+                    print('    A:', a)
+            if s['AAAA']:
+                for a in s['AAAA']:
+                    print('    AAAA:', a)
+            if s['CNAME']:
+                for c in s['CNAME']:
+                    print('    CNAME:', c)
 
 
 if __name__ == '__main__':
