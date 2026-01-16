@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / 'src'))  # pr dev import
 
-from dnsmap import resolve_records, parse_txt, crawl_to_tld, scan_srv, reverse_lookup, enumerate_subdomains  # fn pr resolve + txt + crawl + srv + rev + sub
+from dnsmap import resolve_records, parse_txt, crawl_to_tld, scan_srv, reverse_lookup, enumerate_subdomains, ip_neighbors  # fn pr resolve + txt + crawl + srv + rev + sub + neigh
 
 # petit CLI pr test rapide
 
@@ -18,6 +18,8 @@ def main():
     p.add_argument('--rev', action='store_true', help='reverse DNS (PTR) des IPs résolues')
     p.add_argument('--sub', action='store_true', help='brute-force sous-domaines courants')
     p.add_argument('--wordlist', help='chemin vers wordlist (un mot par ligne)')
+    p.add_argument('--neighbors', action='store_true', help='rechercher IP voisines (IPv4)')
+    p.add_argument('--radius', type=int, default=2, help='rayon pour IP voisines (défaut: 2)')
     args = p.parse_args()  # parse args
     res = resolve_records(args.domain)  # call fn
     for rtype, vals in res.items():
@@ -98,6 +100,25 @@ def main():
             if s['CNAME']:
                 for c in s['CNAME']:
                     print('    CNAME:', c)
+
+    if getattr(args, 'neighbors', False):
+        print('\nIP voisines:')
+        # on récupère les IPs résolues (A seulement)
+        ips = []
+        for vals in res.get('A', []), res.get('AAAA', []):
+            for ip in vals:
+                if ip not in ips:
+                    ips.append(ip)
+        if not ips:
+            print('  (aucune IP trouvée)')
+        for ip in ips:
+            neigh = ip_neighbors(ip, args.radius)
+            print(f"  pour {ip}:")
+            for n in neigh:
+                if n['ptrs']:
+                    print(f"    {n['ip']} -> {', '.join(n['ptrs'])}")
+                else:
+                    print(f"    {n['ip']} -> (aucun PTR)")
 
 
 if __name__ == '__main__':
