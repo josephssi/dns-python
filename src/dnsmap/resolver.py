@@ -1,7 +1,12 @@
 import dns.resolver
 
 # petit script: resolve A/AAAA
-def resolve_records(domain: str, record_types=('A', 'AAAA')) -> dict:
+def resolve_records(domain: str, record_types=('A', 'AAAA', 'MX', 'CNAME', 'SOA')) -> dict:
+    """Resolve common DNS record types for `domain`.
+
+    By default resolves A, AAAA, MX, CNAME and SOA. TXT is handled by the TXT parser.
+    Results are returned as mapping rtype -> list of textual values (as returned by dnspython).
+    """
     res = {}
     for rtype in record_types:
         vals = []

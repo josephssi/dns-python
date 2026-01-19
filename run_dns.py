@@ -80,12 +80,11 @@ def main():
 
     if getattr(args, 'rev', False):
         print(f"\n{HDR}Reverse DNS:{RST}")
-        # collect IPs résolus
+        # collect only A/AAAA IPs
         ips = []
-        for vals in res.values():
-            for ip in vals:
-                if ip not in ips:
-                    ips.append(ip)
+        for ip in res.get('A', []) + res.get('AAAA', []):
+            if ip not in ips:
+                ips.append(ip)
         if not ips:
             print('  (aucune IP trouvée)')
         for ip in ips:

@@ -33,15 +33,39 @@ def build_graph(domain: str, include=None) -> Digraph:
 
     domain_id = _add_node(g, domain, kind='domain', added=added)
 
-    # A / AAAA
+    # A / AAAA / MX / CNAME / SOA
     if 'a' in include:
         try:
             from .resolver import resolve_records
             recs = resolve_records(domain)
             for rtype, vals in recs.items():
                 for v in vals:
-                    v_id = _add_node(g, v, kind='ip', added=added)
-                    g.edge(domain_id, v_id, label=rtype)
+                    # treat by record type
+                    if rtype in ('A', 'AAAA'):
+                        v_id = _add_node(g, v, kind='ip', added=added)
+                        g.edge(domain_id, v_id, label=rtype)
+                    elif rtype == 'MX':
+                        # MX value typically: "10 mail.example.com." — take last token as exchanger
+                        parts = v.split()
+                        exch = parts[-1].rstrip('.') if parts else v
+                        exch_id = _add_node(g, exch, kind='domain', added=added)
+                        g.edge(domain_id, exch_id, label=f"MX {parts[0] if parts and parts[0].isdigit() else ''}".strip())
+                    elif rtype == 'CNAME':
+                        tgt = v.rstrip('.')
+                        tgt_id = _add_node(g, tgt, kind='domain', added=added)
+                        g.edge(domain_id, tgt_id, label='CNAME')
+                    elif rtype == 'SOA':
+                        # SOA is a long record; create a node with the raw SOA as label
+                        soa_label = v
+                        soa_id = _add_node(g, f"SOA: {domain}", kind='domain', added=added)
+                        # store label separately by setting node's label explicitly
+                        # Graphviz node already uses label=name, so create unique id and add label as attribute
+                        g.node(soa_id, label=soa_label, shape='note', style='filled', fillcolor='#fff2cc')
+                        g.edge(domain_id, soa_id, label='SOA')
+                    else:
+                        # generic fallback: treat as domain
+                        node_id = _add_node(g, v, kind='domain', added=added)
+                        g.edge(domain_id, node_id, label=rtype)
         except Exception:
             pass
 
