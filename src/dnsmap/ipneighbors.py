@@ -20,7 +20,7 @@ def neighbors(ip: str, radius: int = 2) -> list:
 
     ip_int = int(addr)
     min_ip = 0
-    max_ip = 2 ** 32 - 1
+    max_ip = 2**32 - 1
 
     for off in range(-radius, radius + 1):
         if off == 0:
@@ -32,16 +32,21 @@ def neighbors(ip: str, radius: int = 2) -> list:
         ptrs = []
         try:
             rev = dns.reversename.from_address(nip)
-            ans = dns.resolver.resolve(rev, 'PTR')
+            ans = dns.resolver.resolve(rev, "PTR")
             for r in ans:
-                ptrs.append(r.to_text().rstrip('.'))
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
+                ptrs.append(r.to_text().rstrip("."))
+        except (
+            dns.resolver.NXDOMAIN,
+            dns.resolver.NoAnswer,
+            dns.resolver.NoNameservers,
+            dns.exception.Timeout,
+        ):
             ptrs = []
 
-        out.append({'ip': nip, 'ptrs': ptrs})
+        out.append({"ip": nip, "ptrs": ptrs})
 
     return out
 
 
-if __name__ == '__main__':
-    print(neighbors('34.227.236.7', 2))
+if __name__ == "__main__":
+    print(neighbors("34.227.236.7", 2))

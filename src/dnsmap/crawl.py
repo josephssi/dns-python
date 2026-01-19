@@ -1,4 +1,3 @@
-
 import tldextract
 
 
@@ -6,7 +5,7 @@ import tldextract
 def crawl_to_tld(domain: str) -> list:
     """Renvoie les domaines parents jusqu'au suffixe public."""
     # découpe en étiquettes
-    labels = domain.strip().split('.')
+    labels = domain.strip().split(".")
     if len(labels) <= 1:
         return []
 
@@ -18,13 +17,10 @@ def crawl_to_tld(domain: str) -> list:
     n = len(labels)
     # construit les parents en enlevant l'étiquette gauche
     for i in range(1, n):
-        candidate = '.'.join(labels[i:])
+        candidate = ".".join(labels[i:])
         parents.append(candidate)
         # si on atteint le suffixe public, on s'arrête
         if candidate == public_suffix:
             break
 
     return parents
-
-
-
