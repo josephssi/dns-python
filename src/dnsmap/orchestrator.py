@@ -16,6 +16,7 @@ def orchestrate(
     strategies: Optional[Dict[str, bool]] = None,
     wordlist: Optional[List[str]] = None,
     radius: int = 2,
+    max_nodes: int = 500,
 ) -> Dict[str, Any]:
     """Crawl DNS starting from `root` up to `depth` levels.
 
@@ -23,7 +24,17 @@ def orchestrate(
     Returns aggregated results for discovered domains and simple edges for graphing.
     """
     if strategies is None:
-        strategies = {k: True for k in ["txt", "sub", "crawl", "srv", "rev", "neighbors"]}
+        strategies = {
+            k: True
+            for k in [
+                "txt",
+                "sub",
+                "crawl",
+                "srv",
+                "rev",
+                "neighbors",
+            ]
+        }
 
     q = deque()
     q.append((root, 0))
@@ -40,6 +51,9 @@ def orchestrate(
         dom, level = q.popleft()
         if dom in visited:
             continue
+        # stop if we've reached the maximum allowed nodes to avoid runaway
+        if max_nodes and len(visited) >= max_nodes:
+            break
         visited.add(dom)
 
         try:

@@ -47,26 +47,30 @@ def enumerate_subdomains(domain: str, wordlist: list | None = None) -> list:
         words = wordlist
 
     found = []
+    resolver = dns.resolver.Resolver()
+    resolver.timeout = 2
+    resolver.lifetime = 4
+
     for w in words:
         sub = f"{w}.{domain}"
         entry = {"sub": sub, "A": [], "AAAA": [], "CNAME": []}
         # A
         try:
-            ans = dns.resolver.resolve(sub, "A")
+            ans = resolver.resolve(sub, "A", lifetime=4)
             for r in ans:
                 entry["A"].append(r.to_text())
         except Exception:
             pass
         # AAAA
         try:
-            ans = dns.resolver.resolve(sub, "AAAA")
+            ans = resolver.resolve(sub, "AAAA", lifetime=4)
             for r in ans:
                 entry["AAAA"].append(r.to_text())
         except Exception:
             pass
         # CNAME
         try:
-            ans = dns.resolver.resolve(sub, "CNAME")
+            ans = resolver.resolve(sub, "CNAME", lifetime=4)
             for r in ans:
                 entry["CNAME"].append(r.to_text().rstrip("."))
         except Exception:

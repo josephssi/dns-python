@@ -1,4 +1,4 @@
-from src.dnsmap.txtparser import parse_txt_from_strings
+from dnsmap.txtparser import parse_txt_from_strings
 
 
 def test_parse_txt_from_strings_basic():

@@ -35,7 +35,10 @@ def parse_txt(domain: str) -> dict:
     """
     out = {"raw": [], "domains": [], "ips": []}
     try:
-        ans = dns.resolver.resolve(domain, "TXT")
+        resolver = dns.resolver.Resolver()
+        resolver.timeout = 2
+        resolver.lifetime = 4
+        ans = resolver.resolve(domain, "TXT", lifetime=4)
         strs = []
         for r in ans:
             txt = r.to_text()

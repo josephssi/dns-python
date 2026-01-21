@@ -32,7 +32,10 @@ def neighbors(ip: str, radius: int = 2) -> list:
         ptrs = []
         try:
             rev = dns.reversename.from_address(nip)
-            ans = dns.resolver.resolve(rev, "PTR")
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 2
+            resolver.lifetime = 4
+            ans = resolver.resolve(rev, "PTR", lifetime=4)
             for r in ans:
                 ptrs.append(r.to_text().rstrip("."))
         except (

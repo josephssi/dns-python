@@ -57,6 +57,20 @@ def main():
         help="profondeur de récursion pour les stratégies (0 = pas de récursion)",
     )
     p.add_argument(
+        "--simple",
+        action="store_true",
+        help=(
+            "mode simple: limite les stratégies lourdes (no PTR/neighbors) "
+            "et réduit le nombre de nœuds"
+        ),
+    )
+    p.add_argument(
+        "--max-nodes",
+        type=int,
+        default=500,
+        help="limite maximale de nœuds visités lors du crawl (défaut: 500)",
+    )
+    p.add_argument(
         "--report",
         action="store_true",
         help="exporter un rapport Markdown simple sous out/report.md",
@@ -81,9 +95,33 @@ def main():
     # If depth > 0, use orchestrator to gather results across levels
     orch = None
     if getattr(args, "depth", 0) and args.depth > 0:
-        strategies = {k: getattr(args, k) for k in ["txt", "sub", "crawl", "srv", "rev", "neighbors"]}
-        orch = orchestrate(args.domain, depth=args.depth, strategies=strategies, wordlist=wl, radius=args.radius)
-        res = orch.get("records", {}).get(args.domain, {})
+        # Simple mode: do not recurse at all, just resolve the root domain
+        if getattr(args, "simple", False):
+            print("Mode simple: pas de récursion, requêtes minimisées")
+            orch = None
+            res = resolve_records(args.domain)
+        else:
+            strategies = {
+                k: getattr(args, k)
+                for k in [
+                    "txt",
+                    "sub",
+                    "crawl",
+                    "srv",
+                    "rev",
+                    "neighbors",
+                ]
+            }
+            max_nodes = args.max_nodes
+            orch = orchestrate(
+                args.domain,
+                depth=args.depth,
+                strategies=strategies,
+                wordlist=wl,
+                radius=args.radius,
+                max_nodes=max_nodes,
+            )
+            res = orch.get("records", {}).get(args.domain, {})
     else:
         res = resolve_records(args.domain)  # call fn
 
@@ -104,7 +142,10 @@ def main():
     if getattr(args, "txt", False):
         print(f"\n{HDR}Résultats TXT:{RST}")
         if orch:
-            txt = orch.get("txts", {}).get(args.domain, {"raw": [], "domains": [], "ips": []})
+            txt = orch.get(
+                "txts",
+                {},
+            ).get(args.domain, {"raw": [], "domains": [], "ips": []})
         else:
             txt = parse_txt(args.domain)
         print(f"{TYP} brut:{RST}")
@@ -146,7 +187,9 @@ def main():
                 pr = e.get("priority")
                 wt = e.get("weight")
                 port = e.get("port")
-                print(f"   - {VAL}{tgt}:{port}{RST} p={pr} w={wt}")
+                lab = f"   - {VAL}{tgt}:{port}{RST}"
+                lab += f" p={pr} w={wt}"
+                print(lab)
 
     if getattr(args, "rev", False):
         print(f"\n{HDR}Reverse DNS:{RST}")
@@ -167,7 +210,10 @@ def main():
 
     if getattr(args, "sub", False):
         print(f"\n{HDR}Sous-domaines découverts:{RST}")
-        subs = orch.get("subs", {}).get(args.domain, []) if orch else enumerate_subdomains(args.domain, wl)
+        if orch:
+            subs = orch.get("subs", {}).get(args.domain, [])
+        else:
+            subs = enumerate_subdomains(args.domain, wl)
         if not subs:
             print("  (aucun)")
         for s in subs:
@@ -231,9 +277,18 @@ def main():
     # graph si demandé
     if getattr(args, "graph", None):
         if orch:
-            out = render_graph(args.domain, outpath=args.graph, fmt=args.graph_format, orchestrator_data=orch)
+            out = render_graph(
+                args.domain,
+                outpath=args.graph,
+                fmt=args.graph_format,
+                orchestrator_data=orch,
+            )
         else:
-            out = render_graph(args.domain, outpath=args.graph, fmt=args.graph_format)
+            out = render_graph(
+                args.domain,
+                outpath=args.graph,
+                fmt=args.graph_format,
+            )
         print(f"{HDR}Graphe généré:{RST} {out}")
 
 

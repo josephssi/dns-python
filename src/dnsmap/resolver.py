@@ -1,6 +1,10 @@
 # Import du module dnspython pour effectuer des résolutions DNS
 import dns.resolver
 
+# Default DNS query timeouts (seconds)
+DEFAULT_RESOLVER_TIMEOUT = 2
+DEFAULT_RESOLVER_LIFETIME = 4
+
 
 # petit script: resolve A/AAAA
 def resolve_records(
@@ -22,22 +26,26 @@ def resolve_records(
     (as returned by dnspython).
     """
     res = {}
+    resolver = dns.resolver.Resolver()
+    resolver.timeout = DEFAULT_RESOLVER_TIMEOUT
+    resolver.lifetime = DEFAULT_RESOLVER_LIFETIME
+
     for rtype in record_types:
         vals = []
         try:
-            # req DNS pr le type
-            ans = dns.resolver.resolve(domain, rtype)
+            # perform query with controlled lifetime to avoid long blocks
+            ans = resolver.resolve(domain, rtype, lifetime=DEFAULT_RESOLVER_LIFETIME)
             for r in ans:
-                vals.append(r.to_text())  # ajoute la val
+                vals.append(r.to_text())
         except (
             dns.resolver.NoAnswer,
             dns.resolver.NXDOMAIN,
             dns.resolver.NoNameservers,
             dns.exception.Timeout,
+            OSError,
         ):
-            # si pb/no ans -> liste vide
             vals = []
-        res[rtype] = vals  # save ds dict
+        res[rtype] = vals
     return res  # ret dict
 
 

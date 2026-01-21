@@ -92,8 +92,10 @@ def build_graph(domain: str, include=None, orchestrator_data=None) -> Digraph:
 
             # explicit edges collected by orchestrator
             for a, b, rel in edges:
-                a_id = _add_node(g, a, kind=("ip" if ":" in a or a.count(".") == 4 else "domain"), added=added)
-                b_id = _add_node(g, b, kind=("ip" if ":" in b or b.count(".") == 4 else "domain"), added=added)
+                a_kind = "ip" if (":" in a or a.count(".") == 4) else "domain"
+                b_kind = "ip" if (":" in b or b.count(".") == 4) else "domain"
+                a_id = _add_node(g, a, kind=a_kind, added=added)
+                b_id = _add_node(g, b, kind=b_kind, added=added)
                 g.edge(a_id, b_id, label=rel)
         except Exception:
             # fall back to single-domain behavior on any error
@@ -212,7 +214,6 @@ def build_graph(domain: str, include=None, orchestrator_data=None) -> Digraph:
                 for a in s.get("AAAA", []):
                     a_id = _add_node(g, a, kind="ip", added=added)
                     g.edge(sub_id, a_id, label="AAAA")
-                    print(f"joseph je t'aime")
                 for c in s.get("CNAME", []):
                     c_id = _add_node(g, c, kind="domain", added=added)
                     g.edge(sub_id, c_id, label="CNAME")
@@ -257,13 +258,19 @@ def build_graph(domain: str, include=None, orchestrator_data=None) -> Digraph:
     return g
 
 
-def render_graph(domain: str, outpath: str = "dnsmap", fmt: str = "png") -> str:
-    g = build_graph(domain)
+def render_graph(
+    domain: str,
+    outpath: str = "dnsmap",
+    fmt: str = "png",
+    orchestrator_data=None,
+) -> str:
+    g = build_graph(domain, orchestrator_data=orchestrator_data)
     g.format = fmt
     try:
         # Ensure output directory exists and remove any previous output to
         # guarantee the PNG is regenerated/overwritten on each run.
-        outfile = outpath if outpath.endswith(f".{fmt}") else outpath + f".{fmt}"
+        ext = f".{fmt}"
+        outfile = outpath if outpath.endswith(ext) else outpath + ext
         outdir = os.path.dirname(outfile)
         if outdir:
             os.makedirs(outdir, exist_ok=True)
@@ -284,7 +291,8 @@ def render_graph(domain: str, outpath: str = "dnsmap", fmt: str = "png") -> str:
             f.write(g.source)
         # If `dot` is not found by graphviz, try to locate and call it
         # explicitly from common install locations or via shutil.which.
-        outfile = outpath if outpath.endswith(f".{fmt}") else outpath + f".{fmt}"
+        ext = f".{fmt}"
+        outfile = outpath if outpath.endswith(ext) else outpath + ext
         dot_exec = shutil.which("dot")
         if not dot_exec:
             candidates = [
@@ -307,7 +315,13 @@ def render_graph(domain: str, outpath: str = "dnsmap", fmt: str = "png") -> str:
                         os.remove(outfile)
                     except OSError:
                         pass
-                cmd = [dot_exec, f"-T{fmt}", dotpath, "-o", outfile]
+                cmd = [
+                    dot_exec,
+                    f"-T{fmt}",
+                    dotpath,
+                    "-o",
+                    outfile,
+                ]
                 subprocess.run(cmd, check=True)
                 return outfile
             except Exception:
