@@ -1,3 +1,4 @@
+# Import du module dnspython pour effectuer des résolutions DNS
 import dns.resolver
 
 
@@ -7,6 +8,7 @@ def resolve_records(
     record_types=(
         "A",
         "AAAA",
+        "NS",
         "MX",
         "CNAME",
         "SOA",
