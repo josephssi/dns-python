@@ -11,6 +11,13 @@ Principales fonctionnalités
 - Énumération simple de sous-domaines (wordlist)
 - Recherche d'adresses IP voisines (IPv4)
 - Export du graphe en `.dot` (Graphviz) et rendu en image si `dot` est installé
+- Orchestrateur de crawl contrôlé par profondeur (`--depth`) pour explorer récursivement
+	les domaines découverts par les différentes stratégies.
+- Mode simple `--simple` : réduit fortement les requêtes (désactive PTR, neighbors,
+	subdomain brute-force et SRV) et résout uniquement la racine — utile si réseau lent.
+- Limite de nœuds visités via `--max-nodes` pour éviter les crawls trop larges.
+- Tests unitaires ajoutés (`tests/`) et corrections flake8 pour le projet.
+
 
 Prérequis
 - Python 3.8+
@@ -41,6 +48,19 @@ python run_dns.py example.com --graph out/dnsmap
 python run_dns.py example.com --report
 ```
 
+Exemples :
+
+```powershell
+# Recursion contrôlée, profondeur 1
+python run_dns.py example.com --depth 1 --graph out/dnsmap_depth1 --graph-format png
+
+# Mode simple (peu de requêtes) — utile en local ou derrière un réseau lent
+python run_dns.py example.com --depth 5 --simple --graph out/dnsmap_simple --graph-format png
+
+# Limiter le nombre total de nœuds explorés
+python run_dns.py example.com --depth 3 --max-nodes 200 --graph out/dnsmap_max200
+```
+
 Sorties
 - Sortie texte colorée dans la console (A/AAAA, TXT, MX, SRV, etc.)
 - Fichier `out/dnsmap.dot` si `--graph` demandé; rendu image si `dot` disponible
@@ -56,6 +76,23 @@ ii out\dnsmap.png
 Dépannage rapide
 - Si `dot` n'est pas trouvé, vérifie que Graphviz est installé et que son dossier `bin` est dans `PATH`.
 - Les requêtes DNS nécessitent un accès réseau.
+ - Si le crawl semble ne rien découvrir pour des profondeurs supérieures, vérifie que tu n'as
+	 pas utilisé `--simple` (qui désactive la récursion), et ajuste `--max-nodes` ou réduis
+	 la profondeur `--depth` si tu remarques des timeouts.
+
+Tests & lint
+- Lancer les tests :
+
+```bash
+pytest -q
+```
+
+- Vérifier le style :
+
+```bash
+flake8
+```
+
 
 
 
