@@ -1,3 +1,6 @@
+import os
+import shutil
+import subprocess
 from graphviz import Digraph
 from graphviz.backend.execute import ExecutableNotFound
 
@@ -208,11 +211,76 @@ def render_graph(domain: str, outpath: str = "dnsmap", fmt: str = "png") -> str:
     g = build_graph(domain)
     g.format = fmt
     try:
+        # Ensure output directory exists and remove any previous output to
+        # guarantee the PNG is regenerated/overwritten on each run.
+        outfile = outpath if outpath.endswith(f".{fmt}") else outpath + f".{fmt}"
+        outdir = os.path.dirname(outfile)
+        if outdir:
+            os.makedirs(outdir, exist_ok=True)
+        if os.path.exists(outfile):
+            try:
+                os.remove(outfile)
+            except OSError:
+                pass
+
         filename = g.render(filename=outpath, cleanup=True)
-        return filename
+        # g.render returns the path to the rendered file; normalize to the
+        # expected output path (with extension) for callers.
+        return outfile if os.path.exists(outfile) else filename
     except ExecutableNotFound:
         # Graphviz native `dot` not found: export DOT source for manual rendering
         dotpath = outpath if outpath.endswith(".dot") else outpath + ".dot"
         with open(dotpath, "w", encoding="utf-8") as f:
             f.write(g.source)
-        return dotpath
+        # If `dot` is not found by graphviz, try to locate and call it
+        # explicitly from common install locations or via shutil.which.
+        outfile = outpath if outpath.endswith(f".{fmt}") else outpath + f".{fmt}"
+        dot_exec = shutil.which("dot")
+        if not dot_exec:
+            candidates = [
+                r"C:\Program Files\Graphviz\bin\dot.exe",
+                r"C:\Program Files (x86)\Graphviz\bin\dot.exe",
+            ]
+            for c in candidates:
+                if os.path.exists(c):
+                    dot_exec = c
+                    break
+
+        if dot_exec:
+            try:
+                # ensure output dir exists
+                outdir = os.path.dirname(outfile)
+                if outdir:
+                    os.makedirs(outdir, exist_ok=True)
+                if os.path.exists(outfile):
+                    try:
+                        os.remove(outfile)
+                    except OSError:
+                        pass
+                subprocess.run([dot_exec, f"-T{fmt}", dotpath, "-o", outfile], check=True)
+                return outfile
+            except Exception:
+                # fall through to Source fallback
+                pass
+
+        # Try to render via graphviz.Source as a fallback (may still require
+        # native `dot`). If that fails, return the .dot path for manual
+        # rendering.
+        try:
+            from graphviz import Source
+
+            s = Source(g.source)
+            s.format = fmt
+            # ensure output dir exists
+            outdir = os.path.dirname(outfile)
+            if outdir:
+                os.makedirs(outdir, exist_ok=True)
+            if os.path.exists(outfile):
+                try:
+                    os.remove(outfile)
+                except OSError:
+                    pass
+            s.render(filename=outpath, cleanup=True)
+            return outfile
+        except Exception:
+            return dotpath
