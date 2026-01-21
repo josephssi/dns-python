@@ -4,11 +4,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))  # pr dev import
 
-from colorama import init as colorama_init, Fore, Style
+from colorama import init as colorama_init, Fore, Style  # noqa: E402
 
-colorama_init()
+colorama_init()  # initialize colorama after import
 
-from dnsmap import (
+from dnsmap import (  # noqa: E402
     resolve_records,
     parse_txt,
     crawl_to_tld,
@@ -16,8 +16,9 @@ from dnsmap import (
     reverse_lookup,
     enumerate_subdomains,
     ip_neighbors,
-)  # fn pr resolve + txt + crawl + srv + rev + sub + neigh
-from dnsmap.graphout import render_graph
+ )  # fn pr resolve + txt + crawl + srv + rev + sub + neigh
+from dnsmap.graphout import render_graph  # noqa: E402
+from dnsmap.orchestrator import orchestrate  # noqa: E402
 
 # petit CLI pr test rapide + sortie colorée
 
@@ -50,6 +51,12 @@ def main():
         "--graph-format", default="png", help="format du graphe (png, pdf, svg)"
     )
     p.add_argument(
+        "--depth",
+        type=int,
+        default=0,
+        help="profondeur de récursion pour les stratégies (0 = pas de récursion)",
+    )
+    p.add_argument(
         "--report",
         action="store_true",
         help="exporter un rapport Markdown simple sous out/report.md",
@@ -61,7 +68,24 @@ def main():
         for f in strategy_flags:
             setattr(args, f, True)
 
-    res = resolve_records(args.domain)  # call fn
+    # load wordlist early if provided
+    wl = None
+    if getattr(args, "wordlist", None):
+        try:
+            from dnsmap.subenum import load_wordlist
+
+            wl = load_wordlist(args.wordlist)
+        except Exception:
+            wl = None
+
+    # If depth > 0, use orchestrator to gather results across levels
+    orch = None
+    if getattr(args, "depth", 0) and args.depth > 0:
+        strategies = {k: getattr(args, k) for k in ["txt", "sub", "crawl", "srv", "rev", "neighbors"]}
+        orch = orchestrate(args.domain, depth=args.depth, strategies=strategies, wordlist=wl, radius=args.radius)
+        res = orch.get("records", {}).get(args.domain, {})
+    else:
+        res = resolve_records(args.domain)  # call fn
 
     # couleurs
     HDR = Fore.CYAN + Style.BRIGHT
@@ -79,7 +103,10 @@ def main():
 
     if getattr(args, "txt", False):
         print(f"\n{HDR}Résultats TXT:{RST}")
-        txt = parse_txt(args.domain)
+        if orch:
+            txt = orch.get("txts", {}).get(args.domain, {"raw": [], "domains": [], "ips": []})
+        else:
+            txt = parse_txt(args.domain)
         print(f"{TYP} brut:{RST}")
         for r in txt["raw"]:
             print("  ", r)
@@ -92,21 +119,34 @@ def main():
 
     if getattr(args, "crawl", False):
         print(f"\n{HDR}Parents jusqu au TLD:{RST}")
-        parents = crawl_to_tld(args.domain)
+        # prefer orchestrator-collected parents if available
+        if orch:
+            # derive parents from edges labelled 'parent'
+            parents = []
+            for a, b, rel in orch.get("edges", []):
+                if a == args.domain and rel == "parent":
+                    parents.append(b)
+        else:
+            parents = crawl_to_tld(args.domain)
         for pdom in parents:
             print("  ", pdom)
 
     if getattr(args, "srv", False):
         print(f"\n{HDR}SRV scan:{RST}")
-        srv = scan_srv(args.domain)
+        if orch:
+            srv = orch.get("srvs", {}).get(args.domain, {})
+        else:
+            srv = scan_srv(args.domain)
         for svc, entries in srv.items():
             print(f" {TYP}{svc}:{RST}")
             if not entries:
                 print("   (aucun)")
             for e in entries:
-                print(
-                    f"   - {VAL}{e['target']}:{e['port']}{RST} p={e['priority']} w={e['weight']}"
-                )
+                tgt = e.get("target")
+                pr = e.get("priority")
+                wt = e.get("weight")
+                port = e.get("port")
+                print(f"   - {VAL}{tgt}:{port}{RST} p={pr} w={wt}")
 
     if getattr(args, "rev", False):
         print(f"\n{HDR}Reverse DNS:{RST}")
@@ -127,16 +167,7 @@ def main():
 
     if getattr(args, "sub", False):
         print(f"\n{HDR}Sous-domaines découverts:{RST}")
-        wl = None
-        if getattr(args, "wordlist", None):
-            wl = []
-            try:
-                from dnsmap.subenum import load_wordlist
-
-                wl = load_wordlist(args.wordlist)
-            except Exception:
-                wl = None
-        subs = enumerate_subdomains(args.domain, wl)
+        subs = orch.get("subs", {}).get(args.domain, []) if orch else enumerate_subdomains(args.domain, wl)
         if not subs:
             print("  (aucun)")
         for s in subs:
@@ -162,7 +193,11 @@ def main():
         if not ips:
             print("  (aucune IP trouvée)")
         for ip in ips:
-            neigh = ip_neighbors(ip, args.radius)
+            neigh = None
+            if orch:
+                neigh = orch.get("neighbors", {}).get(ip)
+            if neigh is None:
+                neigh = ip_neighbors(ip, args.radius)
             print(f"  pour {VAL}{ip}{RST}:")
             for n in neigh:
                 if n["ptrs"]:
@@ -195,7 +230,10 @@ def main():
 
     # graph si demandé
     if getattr(args, "graph", None):
-        out = render_graph(args.domain, outpath=args.graph, fmt=args.graph_format)
+        if orch:
+            out = render_graph(args.domain, outpath=args.graph, fmt=args.graph_format, orchestrator_data=orch)
+        else:
+            out = render_graph(args.domain, outpath=args.graph, fmt=args.graph_format)
         print(f"{HDR}Graphe généré:{RST} {out}")
 
 

@@ -37,7 +37,7 @@ def _add_node(
     return safe_id
 
 
-def build_graph(domain: str, include=None) -> Digraph:
+def build_graph(domain: str, include=None, orchestrator_data=None) -> Digraph:
     """Build a Digraph representing DNS relations for `domain`.
 
     include: set of strategy keys (a, txt, crawl, srv, sub, rev, neighbors)
@@ -50,8 +50,57 @@ def build_graph(domain: str, include=None) -> Digraph:
 
     domain_id = _add_node(g, domain, kind="domain", added=added)
 
-    # A / AAAA / MX / CNAME / SOA
-    if "a" in include:
+    # If orchestrator_data provided, use it to build a multi-node graph.
+    if orchestrator_data is not None:
+        try:
+            recs_map = orchestrator_data.get("records", {})
+            txts_map = orchestrator_data.get("txts", {})
+            subs_map = orchestrator_data.get("subs", {})
+            edges = orchestrator_data.get("edges", [])
+            # add nodes for all discovered domains and records
+            for d, recs in recs_map.items():
+                d_id = _add_node(g, d, kind="domain", added=added)
+                for rtype, vals in (recs or {}).items():
+                    for v in vals:
+                        if rtype in ("A", "AAAA"):
+                            v_id = _add_node(g, v, kind="ip", added=added)
+                            g.edge(d_id, v_id, label=rtype)
+                        else:
+                            v_id = _add_node(g, v, kind="domain", added=added)
+                            g.edge(d_id, v_id, label=rtype)
+
+            # TXT relations
+            for d, t in txts_map.items():
+                d_id = _add_node(g, d, kind="domain", added=added)
+                for rd in t.get("domains", []):
+                    rd_id = _add_node(g, rd, kind="domain", added=added)
+                    g.edge(d_id, rd_id, label="TXT")
+                for ip in t.get("ips", []):
+                    ip_id = _add_node(g, ip, kind="ip", added=added)
+                    g.edge(d_id, ip_id, label="TXT")
+
+            # subdomains
+            for d, s_list in subs_map.items():
+                d_id = _add_node(g, d, kind="domain", added=added)
+                for s in s_list:
+                    subdom = s.get("sub")
+                    sub_id = _add_node(g, subdom, kind="domain", added=added)
+                    g.edge(d_id, sub_id, label="sub")
+                    for a in s.get("A", []):
+                        a_id = _add_node(g, a, kind="ip", added=added)
+                        g.edge(sub_id, a_id, label="A")
+
+            # explicit edges collected by orchestrator
+            for a, b, rel in edges:
+                a_id = _add_node(g, a, kind=("ip" if ":" in a or a.count(".") == 4 else "domain"), added=added)
+                b_id = _add_node(g, b, kind=("ip" if ":" in b or b.count(".") == 4 else "domain"), added=added)
+                g.edge(a_id, b_id, label=rel)
+        except Exception:
+            # fall back to single-domain behavior on any error
+            orchestrator_data = None
+
+    # A / AAAA / MX / CNAME / SOA (single-domain fallback)
+    if orchestrator_data is None and "a" in include:
         try:
             from .resolver import resolve_records
 
@@ -163,6 +212,7 @@ def build_graph(domain: str, include=None) -> Digraph:
                 for a in s.get("AAAA", []):
                     a_id = _add_node(g, a, kind="ip", added=added)
                     g.edge(sub_id, a_id, label="AAAA")
+                    print(f"joseph je t'aime")
                 for c in s.get("CNAME", []):
                     c_id = _add_node(g, c, kind="domain", added=added)
                     g.edge(sub_id, c_id, label="CNAME")
@@ -257,7 +307,8 @@ def render_graph(domain: str, outpath: str = "dnsmap", fmt: str = "png") -> str:
                         os.remove(outfile)
                     except OSError:
                         pass
-                subprocess.run([dot_exec, f"-T{fmt}", dotpath, "-o", outfile], check=True)
+                cmd = [dot_exec, f"-T{fmt}", dotpath, "-o", outfile]
+                subprocess.run(cmd, check=True)
                 return outfile
             except Exception:
                 # fall through to Source fallback
